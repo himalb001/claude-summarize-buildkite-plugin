@@ -9,20 +9,34 @@ echo "BUILDKITE_AGENT_ACCESS_TOKEN: ${BUILDKITE_AGENT_ACCESS_TOKEN:-NOT_SET}"
 echo "BUILDKITE_BUILD_ID: ${BUILDKITE_BUILD_ID:-NOT_SET}"
 
 # Get prompt from plugin config
-PROMPT=${BUILDKITE_PLUGIN_CLAUDE_SUMMARIZE_PROMPT}
+AI_PROMPT=${BUILDKITE_PLUGIN_CLAUDE_SUMMARIZE_PROMPT}
 
 echo "--- :gear: Debug: Configuration"
-echo "PROMPT: '${PROMPT}'"
+echo "PROMPT: '${AI_PROMPT}'"
 
 echo "--- :robot_face: Calling Claude API"
 echo "URL: http://agent.buildkite.localhost/v3/ai/claude/v1/messages"
-echo "Payload: ${PROMPT}"
+echo "Payload: ${AI_PROMPT}"
+
+# Create the JSON payload with properly escaped prompt
+json_payload=$(jq -n \
+  --arg prompt "$AI_PROMPT" \
+  '{
+    "model": "claude-3-opus-20240229",
+    "max_tokens": 256,
+    "stream": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": $prompt
+      }
+    ]
+  }')
 
 # Make API call and capture response body
-response_body=$(curl -s -X POST \
+response_body=$(curl -s --location \
   -H "Authorization: Token $BUILDKITE_AGENT_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"messages\": [{\"role\": \"user\", \"content\": $PROMPT}]}" \
+  --data "$json_payload" \
   http://agent.buildkite.localhost/v3/ai/claude/v1/messages)
 
 curl_exit_code=$?
